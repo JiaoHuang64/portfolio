@@ -1,6 +1,7 @@
 export type Project = {
   id: string;
   title: string;
+  subtitle?: string;   // ← 新增：给 ProjectCard.tsx 用
   org: string;
   period: string;
   role: string;
@@ -13,6 +14,8 @@ export const projects: Project[] = [
   {
     id: "roche-enzyme-assay",
     title: "Enzyme Process Development & Quantitative Activity Assay",
+    subtitle:
+      "Downstream purification and quantitative enzyme activity assay development in a GMP-aligned lab environment.",
     org: "Roche Diagnostics · Novel Enzymes Team",
     period: "Nov 2025 – Present",
     role: "R&D Intern (Industrial Placement)",
@@ -31,6 +34,8 @@ export const projects: Project[] = [
   {
     id: "cranfield-lamp-readout",
     title: "Paper-based LAMP Biosensor Automated Readout",
+    subtitle:
+      "Automated quantitative readout pipeline for paper-based LAMP biosensors using computer vision and lightweight ML.",
     org: "Zhugen Yang Lab · Cranfield University",
     period: "Jun – Sep 2025",
     role: "Research Assistant",
@@ -49,6 +54,8 @@ export const projects: Project[] = [
   {
     id: "ucl-ra-mab-design",
     title: "Rheumatoid Arthritis mAb Production — Integrated Process Design",
+    subtitle:
+      "End-to-end monoclonal antibody process design including perfusion strategy, DSP architecture, and sustainability optimisation.",
     org: "UCL · Bioprocess Design Project",
     period: "Sep – Dec 2024",
     role: "Team Member (Process Economics & Design)",
@@ -67,6 +74,8 @@ export const projects: Project[] = [
   {
     id: "ucl-control-modelling",
     title: "Reaction–Chromatographic Process Control Modelling",
+    subtitle:
+      "Dynamic modelling and PID control optimisation for coupled reaction and chromatographic separation systems.",
     org: "UCL · Process Modelling & Control",
     period: "Jan – Mar 2024",
     role: "Course Project",
@@ -85,6 +94,8 @@ export const projects: Project[] = [
   {
     id: "arxiv-curation-bot",
     title: "arXiv Research Curation Automation Bot",
+    subtitle:
+      "Automation system for filtering and publishing relevant scientific preprints using ML relevance scoring.",
     org: "City University of Hong Kong",
     period: "Jun – Aug 2024",
     role: "Research Assistant",
@@ -103,6 +114,8 @@ export const projects: Project[] = [
   {
     id: "wantai-qc",
     title: "IVD Reagent Quality Control Internship",
+    subtitle:
+      "Quality control testing and statistical evaluation of in-vitro diagnostic reagents.",
     org: "Beijing WanTai Biological Pharmacy",
     period: "Jul – Sep 2023",
     role: "Experiment Assistant",

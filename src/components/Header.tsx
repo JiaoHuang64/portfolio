@@ -36,6 +36,7 @@ export default function Header() {
             >
               Email
             </a>
+
             <a
               className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 no-underline"
               href="https://github.com/JiaoHuang64"
@@ -44,6 +45,7 @@ export default function Header() {
             >
               GitHub
             </a>
+
             <a
               className="rounded-2xl border border-zinc-200 px-4 py-2 text-sm hover:bg-zinc-50 no-underline"
               href="https://www.linkedin.com/in/abraham-yuan-a02631287/"
@@ -52,9 +54,11 @@ export default function Header() {
             >
               LinkedIn
             </a>
+
+            {/* ✅ 修正路径：必须小写 */}
             <a
               className="rounded-2xl bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-800 no-underline"
-              href="/cv/CV.pdf"
+              href="/cv/cv.pdf"
               target="_blank"
               rel="noreferrer"
             >

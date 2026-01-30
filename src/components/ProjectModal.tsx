@@ -33,11 +33,18 @@ export default function ProjectModal({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold">{project.title}</h3>
-                <p className="mt-1 text-sm text-zinc-600">{project.subtitle}</p>
+
+                {project.subtitle && (
+                  <p className="mt-1 text-sm text-zinc-600">{project.subtitle}</p>
+                )}
+
                 <p className="mt-2 text-xs text-zinc-500">
-                  {project.role} • {project.timeline}
+                  {project.role} • {project.period}
                 </p>
+
+                <p className="mt-1 text-xs text-zinc-500">{project.org}</p>
               </div>
+
               <button
                 className="rounded-xl border border-zinc-200 px-3 py-1 text-sm hover:bg-zinc-50"
                 onClick={onClose}
@@ -48,44 +55,36 @@ export default function ProjectModal({
 
             <div className="mt-6 grid gap-6">
               <div>
-                <p className="text-sm font-medium">One-liner</p>
+                <p className="text-sm font-medium">Summary</p>
                 <p className="mt-2 text-sm text-zinc-700">{project.oneLiner}</p>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium">Proof</p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-700">
-                    {project.proof.map((x) => (
-                      <li key={x}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Stack</p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-700">
-                    {project.stack.map((x) => (
-                      <li key={x}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
+              <div>
+                <p className="text-sm font-medium">Key work</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-700">
+                  {project.bullets.map((x, i) => (
+                    <li key={`${project.id}-b-${i}`}>{x}</li>
+                  ))}
+                </ul>
               </div>
 
               <div>
-                <p className="text-sm font-medium">Highlights</p>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  {project.highlights.map((h) => (
-                    <div key={h.title} className="rounded-2xl border border-zinc-200 p-4">
-                      <p className="text-sm font-semibold">{h.title}</p>
-                      <p className="mt-1 text-sm text-zinc-700">{h.detail}</p>
-                    </div>
+                <p className="text-sm font-medium">Tags</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {project.tags.map((t, i) => (
+                    <span
+                      key={`${project.id}-t-${t}-${i}`}
+                      className="rounded-full bg-zinc-50 px-3 py-1 text-xs text-zinc-700 ring-1 ring-zinc-200"
+                    >
+                      {t}
+                    </span>
                   ))}
                 </div>
               </div>
 
               <div className="pt-2">
                 <p className="text-xs text-zinc-500">
-                  Tip: keep content factual; avoid confidential details. For Roche items, summarise
+                  Note: keep content factual; avoid confidential details. For Roche items, summarise
                   method-level contributions only.
                 </p>
               </div>

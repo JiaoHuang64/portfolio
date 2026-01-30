@@ -17,19 +17,27 @@ export default function ProjectCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-semibold">{project.title}</h3>
-          <p className="mt-1 text-sm text-zinc-600">{project.subtitle}</p>
+
+          {project.subtitle && (
+            <p className="mt-1 text-sm text-zinc-600">
+              {project.subtitle}
+            </p>
+          )}
         </div>
+
         <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600">
           View
         </span>
       </div>
 
-      <p className="mt-4 text-sm text-zinc-700">{project.oneLiner}</p>
+      <p className="mt-4 text-sm text-zinc-700">
+        {project.oneLiner}
+      </p>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {project.tags.map((t) => (
+        {project.tags.map((t, i) => (
           <span
-            key={t}
+            key={`${project.id}-${t}-${i}`}
             className="rounded-full bg-zinc-50 px-3 py-1 text-xs text-zinc-700 ring-1 ring-zinc-200"
           >
             {t}
@@ -38,7 +46,7 @@ export default function ProjectCard({
       </div>
 
       <div className="mt-4 text-xs text-zinc-500">
-        {project.role} • {project.timeline}
+        {project.role} • {project.period}
       </div>
     </button>
   );

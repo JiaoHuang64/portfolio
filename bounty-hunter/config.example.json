@@ -41,7 +41,7 @@
     "needs-triage",
     "blocked"
   ],
-  "maxAgeMonths": 12,
-  "maxExistingClaims": 1,
+  "maxAgeMonths": 24,
+  "maxExistingClaims": 3,
   "topN": 15
 }

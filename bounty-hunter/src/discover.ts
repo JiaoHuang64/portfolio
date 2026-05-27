@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 type Bounty = {
@@ -49,30 +49,84 @@ async function loadConfig(): Promise<Config> {
   }
 }
 
-async function fetchBountiesForOrg(org: string): Promise<Bounty[]> {
-  const payload: Record<string, unknown> = { org, limit: 50 };
-  if (process.env.BOUNTY_STATUS !== "any") {
-    payload.status = process.env.BOUNTY_STATUS ?? "active";
+function extractItems(raw: unknown): Bounty[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    // root-level array, or tRPC batch
+    const tRpcShape = (raw as Array<{ result?: { data?: { json?: { items?: Bounty[] } } } }>)?.[0]
+      ?.result?.data?.json?.items;
+    if (Array.isArray(tRpcShape)) return tRpcShape;
+    if ((raw as unknown[]).every((x) => x && typeof x === "object" && "reward" in (x as object))) {
+      return raw as Bounty[];
+    }
   }
-  const input = encodeURIComponent(
-    JSON.stringify({ "0": { json: payload } })
-  );
-  const url = `https://console.algora.io/api/trpc/bounty.list?batch=1&input=${input}`;
-  const res = await fetch(url, {
-    headers: {
-      accept: "application/json",
-      "user-agent": "bounty-hunter/0.1",
-    },
-  });
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.items)) return obj.items as Bounty[];
+  if (Array.isArray(obj.data)) return obj.data as Bounty[];
+  if (Array.isArray(obj.bounties)) return obj.bounties as Bounty[];
+  if (Array.isArray((obj.data as { items?: unknown })?.items)) {
+    return ((obj.data as { items: Bounty[] }).items);
+  }
+  return [];
+}
+
+async function tryFetch(label: string, url: string, org: string): Promise<Bounty[] | null> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { accept: "application/json", "user-agent": "bounty-hunter/0.1" },
+    });
+  } catch (e) {
+    if (DEBUG) console.error(`[${org}] ${label} fetch threw:`, (e as Error).message);
+    return null;
+  }
   if (!res.ok) {
-    console.error(`[${org}] HTTP ${res.status}`);
-    return [];
+    if (DEBUG) console.error(`[${org}] ${label} HTTP ${res.status}`);
+    return null;
   }
-  const data = (await res.json()) as unknown;
-  if (DEBUG) console.error(`[${org}] raw:`, JSON.stringify(data).slice(0, 400));
-  // tRPC batch response shape: [{ result: { data: { json: { items, next_cursor } } } }]
-  const arr = data as Array<{ result?: { data?: { json?: { items?: Bounty[] } } } }>;
-  return arr?.[0]?.result?.data?.json?.items ?? [];
+  const text = await res.text();
+  if (DEBUG) {
+    await mkdir("debug", { recursive: true });
+    await writeFile(`debug/${org}-${label}.json`, text);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    if (DEBUG) console.error(`[${org}] ${label}: non-JSON body`);
+    return null;
+  }
+  const items = extractItems(parsed);
+  if (DEBUG) console.error(`[${org}] ${label}: parsed ${items.length} items`);
+  return items.length > 0 ? items : null;
+}
+
+async function fetchBountiesForOrg(org: string): Promise<Bounty[]> {
+  const status = process.env.BOUNTY_STATUS ?? "open";
+  // 1. documented REST
+  const rest = await tryFetch(
+    "rest",
+    `https://console.algora.io/api/v1/bounties?org=${org}&status=${status}&limit=50`,
+    org
+  );
+  if (rest) return rest;
+  // 2. org-scoped REST
+  const orgRest = await tryFetch(
+    "orgrest",
+    `https://console.algora.io/api/orgs/${org}/bounties?status=${status}&limit=50`,
+    org
+  );
+  if (orgRest) return orgRest;
+  // 3. tRPC fallback (old path)
+  const payload: Record<string, unknown> = { org, limit: 50 };
+  if (status !== "any") payload.status = status;
+  const input = encodeURIComponent(JSON.stringify({ "0": { json: payload } }));
+  const trpc = await tryFetch(
+    "trpc",
+    `https://console.algora.io/api/trpc/bounty.list?batch=1&input=${input}`,
+    org
+  );
+  return trpc ?? [];
 }
 
 function scoreBounty(

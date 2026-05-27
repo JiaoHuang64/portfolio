@@ -1,0 +1,28 @@
+{
+  "orgs": [
+    "cal",
+    "triggerdotdev",
+    "twentyhq",
+    "activepieces",
+    "tabbyml",
+    "calcom",
+    "remotion-dev",
+    "highlight"
+  ],
+  "minReward": 50,
+  "maxReward": 500,
+  "preferredLabels": [
+    "good first issue",
+    "help wanted",
+    "bug",
+    "documentation"
+  ],
+  "blockedLabels": [
+    "epic",
+    "design",
+    "discussion",
+    "needs-triage",
+    "blocked"
+  ],
+  "topN": 10
+}

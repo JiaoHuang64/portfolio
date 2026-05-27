@@ -10,10 +10,18 @@ type Bounty = {
     url: string;
     number?: number;
     labels?: { name: string }[];
+    created_at?: string;
+    createdAt?: string;
+    comments?: number;
+    comments_count?: number;
   };
   repository?: { name: string; owner: { handle: string } };
   org?: { handle: string };
   status?: string;
+  claims?: unknown[];
+  claim_count?: number;
+  attempts?: number;
+  attempt_count?: number;
 };
 
 type Config = {
@@ -22,6 +30,8 @@ type Config = {
   maxReward: number;
   preferredLabels: string[];
   blockedLabels: string[];
+  maxAgeMonths?: number;
+  maxExistingClaims?: number;
   topN: number;
 };
 
@@ -103,6 +113,42 @@ function scoreBounty(
   } else {
     score += 3;
     reasons.push("body-ok");
+  }
+
+  // poison-pill: old issues that nobody has cracked
+  const createdRaw = b.task.created_at ?? b.task.createdAt;
+  if (createdRaw) {
+    const ageMonths =
+      (Date.now() - new Date(createdRaw).getTime()) / (1000 * 60 * 60 * 24 * 30);
+    if (cfg.maxAgeMonths && ageMonths > cfg.maxAgeMonths) {
+      return { score: -1, reasons: [`age ${ageMonths.toFixed(0)}mo > ${cfg.maxAgeMonths}mo`] };
+    }
+    if (ageMonths > 6) {
+      score -= 5;
+      reasons.push(`old:${ageMonths.toFixed(0)}mo`);
+    }
+  }
+
+  // poison-pill: many existing failed claims
+  const claimCount =
+    (Array.isArray(b.claims) ? b.claims.length : undefined) ??
+    b.claim_count ??
+    b.attempt_count ??
+    b.attempts ??
+    0;
+  if (cfg.maxExistingClaims !== undefined && claimCount > cfg.maxExistingClaims) {
+    return { score: -1, reasons: [`${claimCount} prior claims (poison)`] };
+  }
+  if (claimCount > 0) {
+    score -= 3 * claimCount;
+    reasons.push(`${claimCount} claim(s)`);
+  }
+
+  // poison-pill: huge comment thread (contention)
+  const commentCount = b.task.comments ?? b.task.comments_count ?? 0;
+  if (commentCount > 20) {
+    score -= 5;
+    reasons.push(`${commentCount} comments`);
   }
 
   return { score, reasons };

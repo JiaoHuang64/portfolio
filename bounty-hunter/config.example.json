@@ -1,13 +1,30 @@
 {
   "orgs": [
-    "cal",
+    "activepieces",
     "triggerdotdev",
     "twentyhq",
-    "activepieces",
-    "tabbyml",
+    "cal",
     "calcom",
+    "tuist",
+    "zio",
+    "mendableai",
+    "tailcallhq",
+    "novuhq",
     "remotion-dev",
-    "highlight"
+    "qdrant",
+    "digitallyinduced",
+    "thesysdev",
+    "archestraai",
+    "capgo",
+    "tabbyml",
+    "highlight",
+    "spruce-build",
+    "outerbase",
+    "rivet-gg",
+    "tinybirdco",
+    "supabase",
+    "tldraw",
+    "trigger-dev"
   ],
   "minReward": 50,
   "maxReward": 500,
@@ -24,5 +41,7 @@
     "needs-triage",
     "blocked"
   ],
-  "topN": 10
+  "maxAgeMonths": 12,
+  "maxExistingClaims": 1,
+  "topN": 15
 }

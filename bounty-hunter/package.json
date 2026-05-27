@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "discover": "tsx src/discover.ts",
-    "attempt": "tsx src/attempt.ts"
+    "attempt": "tsx src/attempt.ts",
+    "scrape": "tsx src/scrape.ts"
   },
   "devDependencies": {
     "@types/node": "^20",

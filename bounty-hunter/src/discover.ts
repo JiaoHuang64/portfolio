@@ -40,8 +40,12 @@ async function loadConfig(): Promise<Config> {
 }
 
 async function fetchBountiesForOrg(org: string): Promise<Bounty[]> {
+  const payload: Record<string, unknown> = { org, limit: 50 };
+  if (process.env.BOUNTY_STATUS !== "any") {
+    payload.status = process.env.BOUNTY_STATUS ?? "active";
+  }
   const input = encodeURIComponent(
-    JSON.stringify({ "0": { json: { org, status: "open", limit: 50 } } })
+    JSON.stringify({ "0": { json: payload } })
   );
   const url = `https://console.algora.io/api/trpc/bounty.list?batch=1&input=${input}`;
   const res = await fetch(url, {
@@ -106,10 +110,13 @@ function scoreBounty(
 
 async function main() {
   const cfg = await loadConfig();
-  if (!JSON_OUT) console.error(`Scanning ${cfg.orgs.length} orgs...`);
+  const orgs = process.env.BOUNTY_ORGS
+    ? process.env.BOUNTY_ORGS.split(",").map((s) => s.trim()).filter(Boolean)
+    : cfg.orgs;
+  if (!JSON_OUT) console.error(`Scanning ${orgs.length} orgs...`);
 
   const all: { b: Bounty; org: string }[] = [];
-  for (const org of cfg.orgs) {
+  for (const org of orgs) {
     const items = await fetchBountiesForOrg(org);
     if (!JSON_OUT) console.error(`  ${org}: ${items.length} open`);
     for (const b of items) all.push({ b, org });

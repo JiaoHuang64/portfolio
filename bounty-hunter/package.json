@@ -6,7 +6,8 @@
   "scripts": {
     "discover": "tsx src/discover.ts",
     "attempt": "tsx src/attempt.ts",
-    "scrape": "tsx src/scrape.ts"
+    "scrape": "tsx src/scrape.ts",
+    "gh-search": "tsx src/gh-search.ts"
   },
   "devDependencies": {
     "@types/node": "^20",

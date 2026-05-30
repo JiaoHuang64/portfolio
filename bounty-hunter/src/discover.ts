@@ -38,6 +38,8 @@ type Config = {
 const CONFIG_PATH = process.env.BOUNTY_CONFIG ?? resolve(process.cwd(), "config.json");
 const DEBUG = process.argv.includes("--debug");
 const JSON_OUT = process.argv.includes("--json");
+const FROM_FLAG_IDX = process.argv.indexOf("--from");
+const FROM_FILE = FROM_FLAG_IDX >= 0 ? process.argv[FROM_FLAG_IDX + 1] : undefined;
 
 async function loadConfig(): Promise<Config> {
   try {
@@ -208,18 +210,55 @@ function scoreBounty(
   return { score, reasons };
 }
 
+type ScrapedBounty = {
+  amount: number;
+  currency?: string;
+  title?: string;
+  url: string;
+  org?: string;
+  labels?: string[];
+  createdAt?: string;
+  body?: string;
+  claimCount?: number;
+};
+
+function adaptScraped(s: ScrapedBounty): Bounty {
+  return {
+    reward: { amount: s.amount, currency: s.currency },
+    task: {
+      title: s.title ?? "(no title)",
+      body: s.body,
+      url: s.url,
+      labels: s.labels?.map((name) => ({ name })),
+      createdAt: s.createdAt,
+    },
+    claim_count: s.claimCount,
+    org: s.org ? { handle: s.org } : undefined,
+  };
+}
+
 async function main() {
   const cfg = await loadConfig();
-  const orgs = process.env.BOUNTY_ORGS
-    ? process.env.BOUNTY_ORGS.split(",").map((s) => s.trim()).filter(Boolean)
-    : cfg.orgs;
-  if (!JSON_OUT) console.error(`Scanning ${orgs.length} orgs...`);
-
   const all: { b: Bounty; org: string }[] = [];
-  for (const org of orgs) {
-    const items = await fetchBountiesForOrg(org);
-    if (!JSON_OUT) console.error(`  ${org}: ${items.length} open`);
-    for (const b of items) all.push({ b, org });
+
+  if (FROM_FILE) {
+    if (!JSON_OUT) console.error(`Loading bounties from ${FROM_FILE}...`);
+    const raw = await readFile(resolve(process.cwd(), FROM_FILE), "utf8");
+    const scraped = JSON.parse(raw) as ScrapedBounty[];
+    if (!JSON_OUT) console.error(`  ${scraped.length} bounties loaded`);
+    for (const s of scraped) {
+      all.push({ b: adaptScraped(s), org: s.org ?? "?" });
+    }
+  } else {
+    const orgs = process.env.BOUNTY_ORGS
+      ? process.env.BOUNTY_ORGS.split(",").map((s) => s.trim()).filter(Boolean)
+      : cfg.orgs;
+    if (!JSON_OUT) console.error(`Scanning ${orgs.length} orgs...`);
+    for (const org of orgs) {
+      const items = await fetchBountiesForOrg(org);
+      if (!JSON_OUT) console.error(`  ${org}: ${items.length} open`);
+      for (const b of items) all.push({ b, org });
+    }
   }
 
   const scored = all

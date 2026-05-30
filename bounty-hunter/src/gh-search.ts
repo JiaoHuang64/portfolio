@@ -20,13 +20,14 @@ const OUT = OUT_IDX >= 0 ? args[OUT_IDX + 1] : "bounties.json";
 const LIMIT_IDX = args.indexOf("--limit");
 const LIMIT = LIMIT_IDX >= 0 ? Number(args[LIMIT_IDX + 1]) : 100;
 
+// Label-based queries return mostly noise (squatter repos, $1 jokes, abandoned
+// Paratii forks). Real bounties on Algora/Polar embed markers into the issue
+// body itself. We search for those markers instead.
 const QUERIES = [
-  'is:issue is:open label:"bounty"',
-  'is:issue is:open label:"💰 bounty"',
-  'is:issue is:open label:"💵 bounty"',
-  'is:issue is:open label:"bounty-claimable"',
-  'is:issue is:open label:"good first bounty"',
-  'is:issue is:open label:"💎 bounty"',
+  '"polar.sh/api/github" is:issue is:open no:assignee',         // Polar SVG badge URL
+  '"algora.io" "$" is:issue is:open no:assignee',               // Algora link + dollar mention
+  '"💎 Bounty" is:issue is:open no:assignee',                   // Algora's emoji marker
+  '"/bounty $" is:issue is:open no:assignee',                   // direct slash-command echo
 ];
 
 type GhIssue = {
@@ -84,7 +85,10 @@ async function main() {
     console.error(`Loaded ${prev.length} existing bounties from ${OUT}`);
   }
 
-  for (const q of QUERIES) {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  for (const [idx, q] of QUERIES.entries()) {
+    if (idx > 0) await sleep(5000); // dodge secondary rate limit
     const cmd = `gh search issues ${JSON.stringify(q)} --limit ${LIMIT} --json number,title,body,url,state,createdAt,labels,assignees,repository,comments`;
     const issues = ghJson(cmd) as GhIssue[] | null;
     if (!issues) continue;
@@ -92,6 +96,7 @@ async function main() {
     for (const i of issues) {
       if (seen.has(i.url)) continue;
       if (i.assignees && i.assignees.length > 0) continue;
+      if (i.comments > 25) continue;
       const amount = extractAmount(i.title, i.body);
       if (amount === 0) continue;
       seen.add(i.url);

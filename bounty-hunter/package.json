@@ -8,7 +8,8 @@
     "attempt": "tsx src/attempt.ts",
     "scrape": "tsx src/scrape.ts",
     "gh-search": "tsx src/gh-search.ts",
-    "status": "tsx src/status.ts"
+    "status": "tsx src/status.ts",
+    "claim": "tsx src/claim.ts"
   },
   "devDependencies": {
     "@types/node": "^20",

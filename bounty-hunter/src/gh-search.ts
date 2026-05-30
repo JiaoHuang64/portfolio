@@ -52,8 +52,15 @@ function ghJson(cmd: string): unknown {
   }
 }
 
-function extractAmount(title: string, body?: string): number {
-  // common forms: "[$500]", "($300)", "Bounty: $1000", "💰 $250"
+function extractAmount(title: string, body: string | undefined, labels: string[]): number {
+  // labels like "$500" or "💰 $200" are the cleanest signal
+  for (const l of labels) {
+    const m = l.match(/\$\s*(\d{2,5})/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n >= 10 && n <= 100000) return n;
+    }
+  }
   const merged = `${title}\n${body ?? ""}`;
   const patterns = [
     /\$\s*(\d{2,5})(?:\s*USD)?/i,
@@ -69,6 +76,29 @@ function extractAmount(title: string, body?: string): number {
     }
   }
   return 0;
+}
+
+async function fetchPolarBadgeAmount(badgeUrl: string): Promise<number> {
+  try {
+    const res = await fetch(badgeUrl, {
+      headers: { "user-agent": "bounty-hunter/0.1" },
+    });
+    if (!res.ok) return 0;
+    const svg = await res.text();
+    // Polar badges render the funded amount as text in the SVG. Search for $NNN
+    // patterns in the SVG content.
+    const matches = [...svg.matchAll(/\$\s*(\d{2,5})/g)].map((m) => Number(m[1]));
+    if (matches.length === 0) return 0;
+    // take the largest — the pledge total is typically the biggest number shown
+    return Math.max(...matches);
+  } catch {
+    return 0;
+  }
+}
+
+function isBountyFarmRepo(nameWithOwner: string): boolean {
+  const repo = nameWithOwner.split("/")[1]?.toLowerCase() ?? "";
+  return /(^|-)(bounty|bounties|bounty-board|bounty-autopilot)($|-)/.test(repo);
 }
 
 async function main() {
@@ -87,6 +117,8 @@ async function main() {
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+  const pendingPolar: { issue: GhIssue; badgeUrl: string }[] = [];
+
   for (const [idx, q] of QUERIES.entries()) {
     if (idx > 0) await sleep(5000); // dodge secondary rate limit
     const cmd = `gh search issues ${JSON.stringify(q)} --limit ${LIMIT} --json number,title,body,url,state,createdAt,labels,assignees,repository,comments`;
@@ -97,7 +129,37 @@ async function main() {
       if (seen.has(i.url)) continue;
       if (i.assignees && i.assignees.length > 0) continue;
       if (i.comments > 25) continue;
-      const amount = extractAmount(i.title, i.body);
+      if (q.includes("/bounty $") && isBountyFarmRepo(i.repository.nameWithOwner)) continue;
+
+      const labels = i.labels.map((l) => l.name);
+      const amount = extractAmount(i.title, i.body, labels);
+
+      // queue Polar badge fetch if body contains the SVG URL but no inline amount
+      const polarMatch = i.body?.match(
+        /https:\/\/polar\.sh\/api\/github\/[^/]+\/[^/]+\/issues\/\d+\/pledge\.svg/
+      );
+      if (amount === 0 && polarMatch) {
+        pendingPolar.push({ issue: i, badgeUrl: polarMatch[0] });
+        continue;
+      }
+      if (amount === 0) continue;
+      seen.add(i.url);
+      out.push({
+        amount,
+        title: i.title,
+        url: i.url,
+        org: i.repository.nameWithOwner.split("/")[0],
+        labels,
+        createdAt: i.createdAt,
+        body: i.body,
+      });
+    }
+  }
+
+  if (pendingPolar.length > 0) {
+    console.error(`Fetching ${pendingPolar.length} Polar badge SVG(s) for amounts...`);
+    for (const { issue: i, badgeUrl } of pendingPolar) {
+      const amount = await fetchPolarBadgeAmount(badgeUrl);
       if (amount === 0) continue;
       seen.add(i.url);
       out.push({
@@ -109,6 +171,7 @@ async function main() {
         createdAt: i.createdAt,
         body: i.body,
       });
+      await sleep(500);
     }
   }
 

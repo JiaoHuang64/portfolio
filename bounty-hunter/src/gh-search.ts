@@ -101,6 +101,26 @@ function isBountyFarmRepo(nameWithOwner: string): boolean {
   return /(^|-)(bounty|bounties|bounty-board|bounty-autopilot)($|-)/.test(repo);
 }
 
+// Honeypot orgs: publish AI-bait "bounties" then dox/blocklist the agents that
+// attempt them. UnsafeLabs runs clankers-leaderboard.pages.dev and the labels
+// "AI only allowed - no humans" / "AI Agent friendly" are the bait signature.
+// Add others here as discovered.
+const HONEYPOT_ORGS = new Set(["unsafelabs"]);
+const HONEYPOT_LABELS = [
+  /ai\s*only\s*allowed/i,
+  /ai\s*agent\s*friendly/i,
+  /clanker/i,
+];
+
+function isHoneypot(nameWithOwner: string, labels: string[]): boolean {
+  const owner = nameWithOwner.split("/")[0]?.toLowerCase() ?? "";
+  if (HONEYPOT_ORGS.has(owner)) return true;
+  for (const l of labels) {
+    if (HONEYPOT_LABELS.some((re) => re.test(l))) return true;
+  }
+  return false;
+}
+
 async function main() {
   console.error(`Running ${QUERIES.length} GitHub searches (limit ${LIMIT} each)...`);
   const seen = new Set<string>();
@@ -132,6 +152,10 @@ async function main() {
       if (q.includes("/bounty $") && isBountyFarmRepo(i.repository.nameWithOwner)) continue;
 
       const labels = i.labels.map((l) => l.name);
+      if (isHoneypot(i.repository.nameWithOwner, labels)) {
+        console.error(`  SKIP honeypot: ${i.url}`);
+        continue;
+      }
       const amount = extractAmount(i.title, i.body, labels);
 
       // queue Polar badge fetch if body contains the SVG URL but no inline amount

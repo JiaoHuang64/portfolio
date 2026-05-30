@@ -1,6 +1,9 @@
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
 
-const url = process.argv[2] ?? "https://algora.io/bounties";
+const args = process.argv.slice(2);
+const ALL_ORGS = args.includes("--all-orgs");
+const urlArg = args.find((a) => a.startsWith("http"));
 
 type ScrapedBounty = {
   amount: number;
@@ -90,7 +93,7 @@ function dedupe(list: ScrapedBounty[]): ScrapedBounty[] {
   return out;
 }
 
-async function main() {
+async function scrapeOne(url: string): Promise<{ bounties: ScrapedBounty[]; orgs: Set<string> }> {
   console.error(`Fetching ${url} ...`);
   const res = await fetch(url, {
     headers: {
@@ -100,34 +103,27 @@ async function main() {
     },
   });
   if (!res.ok) {
-    console.error(`HTTP ${res.status}`);
-    process.exit(1);
+    console.error(`  HTTP ${res.status}`);
+    return { bounties: [], orgs: new Set() };
   }
   const html = await res.text();
-  console.error(`Received ${html.length} bytes`);
+  console.error(`  received ${html.length} bytes`);
 
   let bounties: ScrapedBounty[] = [];
-
-  // Strategy A: __NEXT_DATA__
-  const nextDataMatch = html.match(
-    /<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
-  );
+  const nextDataMatch = html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (nextDataMatch) {
     try {
       const json = JSON.parse(nextDataMatch[1]);
-      writeFileSync("./algora-page.json", JSON.stringify(json, null, 2));
-      console.error("Wrote __NEXT_DATA__ payload to algora-page.json");
       walkForBounties(json, bounties);
       bounties = dedupe(bounties);
-      console.error(`Extracted ${bounties.length} bounties from __NEXT_DATA__`);
+      console.error(`  extracted ${bounties.length} bounties from __NEXT_DATA__`);
     } catch (e) {
-      console.error("Found __NEXT_DATA__ but JSON.parse failed:", e);
+      console.error(`  __NEXT_DATA__ JSON.parse failed:`, e);
     }
   } else {
-    console.error("No __NEXT_DATA__ tag found (probably client-rendered).");
+    console.error(`  no __NEXT_DATA__ tag (client-rendered)`);
   }
 
-  // Strategy B: extract org handles from anchor hrefs (for config seeding)
   const orgPattern = /href="\/([\w-]+)\/bounties[?/"]/g;
   const orgs = new Set<string>();
   let m: RegExpExecArray | null;
@@ -137,31 +133,65 @@ async function main() {
     orgs.add(handle);
   }
 
-  // Strategy C: raw github issue refs (fallback if walker found nothing)
-  const issuePattern =
-    /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)/g;
-  const issues = new Set<string>();
-  while ((m = issuePattern.exec(html)) !== null) {
-    issues.add(`https://github.com/${m[1]}/${m[2]}/issues/${m[3]}`);
+  if (bounties.length === 0) {
+    const issuePattern = /https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)/g;
+    const issues = new Set<string>();
+    while ((m = issuePattern.exec(html)) !== null) {
+      issues.add(`https://github.com/${m[1]}/${m[2]}/issues/${m[3]}`);
+    }
+    if (issues.size > 0) {
+      console.error(`  walker empty; falling back to ${issues.size} raw issue refs (no $)`);
+      bounties = [...issues].map((u) => ({ amount: 0, url: u }));
+    }
   }
 
-  if (bounties.length === 0 && issues.size > 0) {
-    console.error(`Walker empty; falling back to raw issue list (no $ amounts).`);
-    bounties = [...issues].map((u) => ({ amount: 0, url: u }));
+  return { bounties, orgs };
+}
+
+async function main() {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const urls: string[] = [];
+
+  if (ALL_ORGS) {
+    const cfgPath = resolve(process.cwd(), "config.json");
+    if (!existsSync(cfgPath)) {
+      console.error(`--all-orgs needs config.json with an "orgs" array`);
+      process.exit(1);
+    }
+    const cfg = JSON.parse(readFileSync(cfgPath, "utf8")) as { orgs?: string[] };
+    if (!cfg.orgs?.length) {
+      console.error(`config.json has no "orgs" entries`);
+      process.exit(1);
+    }
+    for (const o of cfg.orgs) urls.push(`https://algora.io/${o}/bounties?status=open`);
+    console.error(`Will scrape ${urls.length} org pages from config.`);
+  } else {
+    urls.push(urlArg ?? "https://algora.io/bounties");
   }
 
-  writeFileSync("./bounties.json", JSON.stringify(bounties, null, 2));
-  console.error(`Wrote ${bounties.length} bounties to bounties.json`);
+  const merged: ScrapedBounty[] = [];
+  const allOrgs = new Set<string>();
+  for (const [idx, u] of urls.entries()) {
+    if (idx > 0) await sleep(1500);
+    const { bounties, orgs } = await scrapeOne(u);
+    merged.push(...bounties);
+    for (const o of orgs) allOrgs.add(o);
+  }
 
-  console.log("\n=== Org handles found in HTML ===");
-  for (const o of [...orgs].sort()) console.log(`  ${o}`);
+  const final = dedupe(merged);
+  writeFileSync("./bounties.json", JSON.stringify(final, null, 2));
+  console.error(`\nWrote ${final.length} unique bounties to bounties.json`);
+
+  console.log("\n=== Org handles seen ===");
+  for (const o of [...allOrgs].sort()) console.log(`  ${o}`);
   console.log(`\n=== Top bounties (by $) ===`);
-  for (const b of [...bounties].sort((a, b) => b.amount - a.amount).slice(0, 15)) {
+  for (const b of [...final].sort((a, b) => b.amount - a.amount).slice(0, 20)) {
     console.log(`  $${b.amount}\t${b.title ?? "(no title)"}\t${b.url}`);
   }
-  if (bounties.length === 0) {
-    console.log(`\nNothing extracted. Page is likely client-rendered.`);
-    console.log(`Open ${url} in a browser, View Source, search __NEXT_DATA__.`);
+  if (final.length === 0) {
+    console.log(`\nNothing extracted across ${urls.length} URL(s).`);
+    console.log(`Algora may be CF-blocking the UA, or pages are fully client-rendered.`);
+    console.log(`Open one URL in a browser, View Source, search __NEXT_DATA__.`);
   }
 }
 

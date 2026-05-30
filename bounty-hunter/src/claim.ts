@@ -102,20 +102,27 @@ if (NO_PUSH) {
   process.exit(0);
 }
 
+let issueTitle = `Fix #${issueNum}`;
+try {
+  const t = shCapture(`gh api repos/${owner}/${repo}/issues/${issueNum} -q .title`);
+  if (t) issueTitle = t;
+} catch {
+  // fall back to generic title
+}
+
 const body = `Closes #${issueNum}
 
 /claim #${issueNum}`;
 
-// gh pr create returns the URL on stdout
 let prUrl = "";
 if (!DRY) {
   prUrl = execSync(
-    `gh pr create --repo ${owner}/${repo} --head $(gh api user -q .login):${branch} --title ${JSON.stringify(`Fix #${issueNum}`)} --body ${JSON.stringify(body)}`,
+    `gh pr create --repo ${owner}/${repo} --head $(gh api user -q .login):${branch} --title ${JSON.stringify(issueTitle)} --body ${JSON.stringify(body)}`,
     { cwd: repoDir, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }
   ).trim();
   console.log(prUrl);
 } else {
-  console.log(`(dry-run) would create PR against ${owner}/${repo} from ${branch}`);
+  console.log(`(dry-run) would create PR against ${owner}/${repo} from ${branch} titled "${issueTitle}"`);
 }
 
 const journalPath = resolve(process.cwd(), "attempts.jsonl");
